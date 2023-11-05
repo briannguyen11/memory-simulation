@@ -26,6 +26,7 @@ LOAD_POS = 0
 
 alg_frame_table = []
 alg_accessed_pages = []
+alg_future_pages = []
 
 PHYS_FULL_FLG = 0
 
@@ -50,11 +51,11 @@ def find_page_num_in_tlb(page_num, tlb):
     return NOT_FOUND
 
 
-def find_page_num_in_page_table(page_num, page_table):
-    for i in range(PAGE_TABLE_SIZE):
-        if page_num == page_table[i][PAGE_NUM_POS]:
-            return i
-    return NOT_FOUND
+def confirm_frame_num_in_page_table(page_num, page_table):
+    if page_table[page_num][FRAME_NUM_POS] != EMPTY:
+        return True
+    else:
+        return False
 
 
 def find_addr_to_unload(page_table, frame_num):
@@ -85,28 +86,60 @@ def get_fifo_idx(curr_idx, buf_size):
 
 
 def get_lru_idx(curr_idx, buf_size, page_num):
-    print("----------> IN LRU")
-    # if len(local_frame_table) < buf_size:
-    # if page_num not in alg_frame_table:
     if len(alg_frame_table) < buf_size:
-        # add only if table is not full
+        # Add only if table is not full
         alg_frame_table.append(page_num)
         alg_accessed_pages.append(page_num)
         return curr_idx + 1
     else:
         PHYS_FULL_FLG = 1
+        # Find LRU
         alg_accessed_pages.append(page_num)
-        rem_addr = alg_accessed_pages.pop(0)
+        rem_page = alg_accessed_pages.pop(0)
         for i in range(len(alg_frame_table)):
-            if alg_frame_table[i] == rem_addr:
+            if alg_frame_table[i] == rem_page:
                 alg_frame_table[i] = page_num
                 return i
 
-    print("in lru")
 
+#############################################
+# @breif
+# @params
+# @return
+#############################################
+def get_opt_idx(curr_idx, buf_size, page_num):
+    if len(alg_frame_table) < buf_size:
+        # Add only if table is not full
+        alg_frame_table.append(page_num)
+        alg_future_pages.pop(0)
+        return curr_idx + 1
+    else:
+        PHYS_FULL_FLG = 1
+        # Find furthest away page to remove
+        alg_future_pages.pop(0)
+        rem_page = 0
+        rem_page_limit = 0
+        rem_page_accessed = set()
+        found_rem_page = False
+        for page in alg_future_pages:
+            if rem_page_limit >= buf_size:
+                break
+            elif page in alg_frame_table:
+                found_rem_page == True
+                rem_page = page
+                if page not in rem_page_accessed:
+                    rem_page_accessed.add(page)
+                    rem_page_limit += 1
 
-def get_opt_idx(curr_idx, table_size):
-    print("in opt")
+        if found_rem_page == False:
+            # set rem_page to first item in frame table if nothing else to replace
+            rem_page = alg_frame_table[0]
+
+        # Replace page in alg table
+        for i in range(len(alg_frame_table)):
+            if alg_frame_table[i] == rem_page:
+                alg_frame_table[i] = page_num
+                return i
 
 
 def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
@@ -118,9 +151,13 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
     page_fault_cnt = 0
     tlb_hit_cnt = 0
 
+    # Pupoluate future page number list if OPT
+    if algo == OPT_FLG:
+        for addr in logical_addr_list:
+            alg_future_pages.append(addr.page_num)
+
     # Begin Simulation
     for addr in logical_addr_list:
-        # print(f"ftable: {alg_frame_table} and access: {alg_accessed_pages}")  # debug
         if find_page_num_in_tlb(addr.page_num, tlb) != NOT_FOUND:
             print("Found logical page num in tlb")
             found_tlb_idx = find_page_num_in_tlb(addr.page_num, tlb)
@@ -129,8 +166,10 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
             tlb_hit_cnt += 1
             if algo == LRU_FLG:
                 update_accessed_table(addr.page_num)
+            elif algo == OPT_FLG:
+                alg_future_pages.pop(0)
         else:
-            if find_page_num_in_page_table(addr.page_num, page_table) != NOT_FOUND:
+            if confirm_frame_num_in_page_table(addr.page_num, page_table) != False:
                 if page_table[addr.page_num][LOAD_POS] == LOADED:
                     print("Found LOADED logical page num in page table")
                     frame_num_tmp = page_table[addr.page_num][FRAME_NUM_POS]
@@ -178,7 +217,9 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                         frame_num_tmp = frame_num
 
                 elif algo == OPT_FLG:
-                    frame_num = get_opt_idx(frame_num, n_frames)
+                    frame_num = get_opt_idx(frame_num, n_frames, addr.page_num)
+                    if PHYS_FULL_FLG == 1:
+                        frame_num_tmp = frame_num
                 else:
                     frame_num = get_fifo_idx(frame_num, n_frames)
 
@@ -203,9 +244,11 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 page_table[addr.page_num][LOAD_POS] = LOADED
 
         # Print Data
-        # print_mem_data(addr, page_content, frame_num_tmp)
-    # print(tlb)
-    # print(page_table)
+        print_mem_data(addr, page_content, frame_num_tmp)
+
+        # print(f"ftable: {alg_frame_table} and access: {alg_future_pages}")  # debug
+        # print("------------> ") # debug
+
     return [tlb_hit_cnt, page_fault_cnt]
 
 
@@ -237,23 +280,22 @@ def main():
     # Main function
     result = do_mem_sim(frame_space, n_frames, algo, addr_list)
 
-    print(alg_frame_table)
     # Print results of simulation
-    # num_translated_addr = len(addr_list)
-    # num_page_faults = result[PAGE_FAULT_DATA]
-    # rate_page_faults = num_page_faults / num_translated_addr
-    # num_tlb_hits = result[TLB_HIT_DATA]
-    # num_tlb_misses = num_translated_addr - num_tlb_hits
-    # rate_tlb_hits = num_tlb_hits / num_translated_addr
+    num_translated_addr = len(addr_list)
+    num_page_faults = result[PAGE_FAULT_DATA]
+    rate_page_faults = num_page_faults / num_translated_addr
+    num_tlb_hits = result[TLB_HIT_DATA]
+    num_tlb_misses = num_translated_addr - num_tlb_hits
+    rate_tlb_hits = num_tlb_hits / num_translated_addr
 
-    # print(
-    #     f"Number of Translated Addresses = {num_translated_addr}\n"
-    #     f"Page Faults = {num_page_faults}\n"
-    #     f"Page Fault Rate = {rate_page_faults}\n"
-    #     f"TLB Hits = {num_tlb_hits}\n"
-    #     f"TLB Misses = {num_tlb_misses}\n"
-    #     f"TLB Hit Rate = {rate_tlb_hits}"
-    # )
+    print(
+        f"Number of Translated Addresses = {num_translated_addr}\n"
+        f"Page Faults = {num_page_faults}\n"
+        f"Page Fault Rate = {rate_page_faults}\n"
+        f"TLB Hits = {num_tlb_hits}\n"
+        f"TLB Misses = {num_tlb_misses}\n"
+        f"TLB Hit Rate = {rate_tlb_hits}"
+    )
 
     # for addr in addr_list:
     #     print(
