@@ -108,23 +108,37 @@ def find_page_to_unload(page_table, frame_num):
 #         frame. Sets page to loaded in page 
 #         table and adds corresponding frame #
 # @params: frame_space, frame_num, page_table, page_num, page_content
-# @return: void
+# @return: page_table, frame_space
 #############################################
 def update_page_table_and_frame(frame_space, frame_num, page_table, page_num, page_content):
     if is_all_zeros(frame_space[frame_num]):
-        # put page content in physical frame if empty
+        # Put page content in physical frame if empty
         frame_space[frame_num] = page_content
     else:
-        # unload page number associated with occupied frame and put in new page content
+        # Unload page number associated with occupied frame and put in new page content
         page_num_to_unload = find_page_to_unload(page_table, frame_num)
-        print(f"UNLOADING {page_num_to_unload}")
         page_table[page_num_to_unload][FRAME_NUM_POS] = EMPTY
         page_table[page_num_to_unload][LOAD_POS] = NOT_LOADED
         frame_space[frame_num] = page_content
     
-    # update page_table
+    # Update page_table
     page_table[page_num][FRAME_NUM_POS] = frame_num
     page_table[page_num][LOAD_POS] = LOADED
+
+    return page_table, frame_space
+
+#############################################
+# @brief: Loads frame content from bin file
+#         at location specified by page_num 
+#         and offset
+# @params: page_num
+# @return: page_content
+#############################################
+def get_page_content(page_num):
+    byte_offset = page_num * FRAME_SIZE
+    with open("BACKING_STORE.bin", "rb") as bin_file:
+        bin_file.seek(byte_offset)
+        return bin_file.read(FRAME_SIZE)
 
 
 #############################################
@@ -210,9 +224,9 @@ def get_opt_idx(curr_idx, buf_size, page_num):
                 if page not in rem_page_accessed:
                     rem_page_accessed.add(page)
                     rem_page_limit += 1
-        print(f"flag {found_rem_page}, rem page: {rem_page}")
+
         if found_rem_page == False:
-            # set rem_page to first item in frame table if nothing else to replace
+            # Set rem_page to first item in frame table if nothing else to replace
             rem_page = alg_frame_table[0]
 
         # Replace page in alg table
@@ -220,6 +234,7 @@ def get_opt_idx(curr_idx, buf_size, page_num):
             if alg_frame_table[i] == rem_page:
                 alg_frame_table[i] = page_num
                 return i
+
 
 #############################################
 # @brief: Runs through all logical addresses,
@@ -244,12 +259,12 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
     for addr in logical_addr_list:
         if find_page_num_in_tlb(addr.page_num, tlb) != -1:
             # Get already known frame_num
-            found_tlb_idx = find_page_num_in_tlb(addr.page_num, tlb)
+            page_tlb_idx = find_page_num_in_tlb(addr.page_num, tlb)
             # Check is it actully loaded
             if page_table[addr.page_num][LOAD_POS] == LOADED:
                 print("Found LOADED logical page num in tlb")
                 tlb_hit_cnt += 1
-                frame_num_tmp = tlb[found_tlb_idx][FRAME_NUM_POS]
+                frame_num_tmp = tlb[page_tlb_idx][FRAME_NUM_POS]
                 page_content = frame_space[frame_num_tmp]
 
                 if algo == LRU_FLG:
@@ -262,10 +277,7 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 page_fault_cnt += 1
 
                 # Get page content from bin file
-                byte_offset = addr.page_num * FRAME_SIZE
-                with open("BACKING_STORE.bin", "rb") as bin_file:
-                    bin_file.seek(byte_offset)
-                    page_content = bin_file.read(FRAME_SIZE)
+                page_content = get_page_content(addr.page_num)
 
                 # Get new frame_num to unload/insert into physical
                 if algo == LRU_FLG:
@@ -277,10 +289,10 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                     frame_num = get_fifo_idx(frame_num, n_frames)
 
                 # Update page table and physical frames
-                update_page_table_and_frame(frame_space, frame_num_tmp, page_table, addr.page_num, page_content)
+                page_table, frame_space = update_page_table_and_frame(frame_space, frame_num_tmp, page_table, addr.page_num, page_content)
 
                 # Update TLB frame_num associated with found page_num
-                tlb[found_tlb_idx][FRAME_NUM_POS] = frame_num_tmp
+                tlb[page_tlb_idx][FRAME_NUM_POS] = frame_num_tmp
 
         else:
             if page_table[addr.page_num][LOAD_POS] == LOADED:
@@ -299,10 +311,7 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 page_fault_cnt += 1
 
                 # Get page content from bin file
-                byte_offset = addr.page_num * FRAME_SIZE
-                with open("BACKING_STORE.bin", "rb") as bin_file:
-                    bin_file.seek(byte_offset)
-                    page_content = bin_file.read(FRAME_SIZE)
+                page_content = get_page_content(addr.page_num)
 
                 # Get new frame_num to unload/insert into physical
                 frame_num_tmp = frame_num
@@ -318,7 +327,7 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                     frame_num = get_fifo_idx(frame_num, n_frames)
 
                 # Update page table and physical frames
-                update_page_table_and_frame(frame_space, frame_num_tmp, page_table, addr.page_num, page_content)
+                page_table, frame_space = update_page_table_and_frame(frame_space, frame_num_tmp, page_table, addr.page_num, page_content)
 
                 # Update TLB using FIFO
                 tlb_idx_tmp = tlb_idx
