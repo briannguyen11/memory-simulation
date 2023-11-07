@@ -30,19 +30,37 @@ alg_future_pages = []
 
 frame_full_flg = False
 
-
+#############################################
+# @brief: Sets a flag if all frames have been
+#         filled in a frame table to signify 
+#         when to start using algo-generated
+#         frame numbers within LRU and OPT
+# @params: new_value (boolean)
+# @return: void
+#############################################
 def set_full_flg(new_value):
     global frame_full_flg
     frame_full_flg = new_value
 
-
+#############################################
+# @brief: Checks if a byte is equal to zero
+# @params: item (list of bytes)
+# @return: boolean
+#############################################
 def is_all_zeros(item):
     for byte in item:
         if byte != 0:
             return False
     return True
 
-
+#############################################
+# @brief: Separates logical addresses into
+#         offsets and page numbers and stores
+#         this info in a list of LogicalAddr 
+#         objects
+# @params: filename
+# @return: list of LogicalAddr objects
+#############################################
 def get_logical_addresses(filename: str):
     logical_addr_list = []
     with open(filename, "r") as file:
@@ -55,40 +73,73 @@ def get_logical_addresses(filename: str):
             logical_addr_list.append(curr_addr)
     return logical_addr_list
 
-
+#############################################
+# @brief: Finds location of a page in TLB
+# @params: page_num, tlb
+# @return: int i (index in TLB)
+#############################################
 def find_page_num_in_tlb(page_num, tlb):
     for i in range(TLB_SIZE):
         if page_num == tlb[i][PAGE_NUM_POS]:
             return i
     return -1
 
-
+#############################################
+# @brief: Checks if frame number is in page 
+#         table
+# @params: page_num, page_table
+# @return: boolean
+#############################################
 def confirm_frame_num_in_page_table(page_num, page_table):
     if page_table[page_num][FRAME_NUM_POS] != EMPTY:
         return True
     else:
         return False
 
-
+#############################################
+# @brief: Finds page number of frame to be 
+#         unloaded during page replacement
+# @params: page_table, frame_num
+# @return: int i (page number)
+#############################################
 def find_addr_to_unload(page_table, frame_num):
     for i in range(PAGE_TABLE_SIZE):
         if page_table[i][FRAME_NUM_POS] == frame_num:
             return i
     return -1
 
-
+#############################################
+# @brief: Prints logical address, bin memory
+#         value, frame number, and byte 
+#         content of loaded page
+# @params: addr, page_content, frame_num_tmp
+# @return: void
+#############################################
 def print_mem_data(addr, page_content, frame_num_tmp):
     byte_val = page_content[addr.offset]
     page_content_value = byte_val if byte_val < 128 else byte_val - 256
     page_content = binascii.hexlify(page_content).decode("utf-8")
     print(f"{addr.address}, {page_content_value}, {frame_num_tmp}, \n{page_content}")
 
-
+#############################################
+# @brief: For LRU, removes an existing page 
+#         from accessed list and adds it to 
+#         the end of the list to signify it
+#         being recently accessed again
+# @params: page_num
+# @return: void
+#############################################
 def update_accessed_table(page_num):
     alg_accessed_pages.remove(page_num)
     alg_accessed_pages.append(page_num)
 
-
+#############################################
+# @brief: Determines frame that should have its
+#         page swapped during a page fault when
+#         FIFO algo is used
+# @params: curr_idx, buf_size
+# @return: int res (frame index)
+#############################################
 def get_fifo_idx(curr_idx, buf_size):
     if curr_idx == (buf_size - 1):
         res = curr_idx % (buf_size - 1)
@@ -96,7 +147,13 @@ def get_fifo_idx(curr_idx, buf_size):
         res = (curr_idx % (buf_size - 1)) + 1
     return res
 
-
+#############################################
+# @brief: Determines frame that should have its
+#         page swapped during a page fault when
+#         LRU algo is used
+# @params: curr_idx, buf_size, page_num
+# @return: int i (frame index)
+#############################################
 def get_lru_idx(curr_idx, buf_size, page_num):
     if len(alg_frame_table) < buf_size:
         # Add only if table is not full
@@ -115,9 +172,11 @@ def get_lru_idx(curr_idx, buf_size, page_num):
 
 
 #############################################
-# @brief
-# @params
-# @return
+# @brief: Determines frame that should have its
+#         page swapped during a page fault when
+#         OPT algo is used
+# @params: curr_idx, buf_size, page_num
+# @return: int i (frame index)
 #############################################
 def get_opt_idx(curr_idx, buf_size, page_num):
     if len(alg_frame_table) < buf_size:
@@ -153,7 +212,16 @@ def get_opt_idx(curr_idx, buf_size, page_num):
                 alg_frame_table[i] = page_num
                 return i
 
-
+#############################################
+# @brief: Runs through all logical addresses,
+#         adding to the tlb and page table if
+#         not already there, and running the
+#         inputted PRA when there are less 
+#         frames than logical addresses
+# @params: frame_space, n_frames, algo, 
+#          logical_addr_list
+# @return: tlb_hit_cnt, page_fault_cnt
+#############################################
 def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
     # Init buffers, indices, counters
     tlb = [[EMPTY, EMPTY] for _ in range(TLB_SIZE)]
@@ -334,7 +402,14 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
 
     return [tlb_hit_cnt, page_fault_cnt]
 
-
+#############################################
+# @brief: Reads in addresses to translate, runs
+#         through every address and stores 
+#         appropriately in physical memory,
+#         then prints simulation statistics
+# @params: void (uses command line args)
+# @return: void
+#############################################
 def main():
     # Parse command line arguments
     if (len(sys.argv) < 2) or (len(sys.argv) > 4):
