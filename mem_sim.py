@@ -42,6 +42,7 @@ def set_full_flg(new_value):
     global frame_full_flg
     frame_full_flg = new_value
 
+
 #############################################
 # @brief: Checks if a byte is equal to zero
 # @params: item (list of bytes)
@@ -52,6 +53,7 @@ def is_all_zeros(item):
         if byte != 0:
             return False
     return True
+
 
 #############################################
 # @brief: Separates logical addresses into
@@ -73,6 +75,7 @@ def get_logical_addresses(filename: str):
             logical_addr_list.append(curr_addr)
     return logical_addr_list
 
+
 #############################################
 # @brief: Finds location of a page in TLB
 # @params: page_num, tlb
@@ -84,17 +87,6 @@ def find_page_num_in_tlb(page_num, tlb):
             return i
     return -1
 
-#############################################
-# @brief: Checks if frame number is in page 
-#         table
-# @params: page_num, page_table
-# @return: boolean
-#############################################
-def confirm_frame_num_in_page_table(page_num, page_table):
-    if page_table[page_num][FRAME_NUM_POS] != EMPTY:
-        return True
-    else:
-        return False
 
 #############################################
 # @brief: Finds page number of frame to be 
@@ -102,11 +94,38 @@ def confirm_frame_num_in_page_table(page_num, page_table):
 # @params: page_table, frame_num
 # @return: int i (page number)
 #############################################
-def find_addr_to_unload(page_table, frame_num):
+def find_page_to_unload(page_table, frame_num):
     for i in range(PAGE_TABLE_SIZE):
         if page_table[i][FRAME_NUM_POS] == frame_num:
             return i
     return -1
+
+
+#############################################
+# @brief: Loads frame content if frame is 
+#         empty, unloads page in frame to be
+#         replaced, and loads new page into
+#         frame. Sets page to loaded in page 
+#         table and adds corresponding frame #
+# @params: frame_space, frame_num, page_table, page_num, page_content
+# @return: void
+#############################################
+def update_page_table_and_frame(frame_space, frame_num, page_table, page_num, page_content):
+    if is_all_zeros(frame_space[frame_num]):
+        # put page content in physical frame if empty
+        frame_space[frame_num] = page_content
+    else:
+        # unload page number associated with occupied frame and put in new page content
+        page_num_to_unload = find_page_to_unload(page_table, frame_num)
+        print(f"UNLOADING {page_num_to_unload}")
+        page_table[page_num_to_unload][FRAME_NUM_POS] = EMPTY
+        page_table[page_num_to_unload][LOAD_POS] = NOT_LOADED
+        frame_space[frame_num] = page_content
+    
+    # update page_table
+    page_table[page_num][FRAME_NUM_POS] = frame_num
+    page_table[page_num][LOAD_POS] = LOADED
+
 
 #############################################
 # @brief: Prints logical address, bin memory
@@ -121,17 +140,6 @@ def print_mem_data(addr, page_content, frame_num_tmp):
     page_content = binascii.hexlify(page_content).decode("utf-8")
     print(f"{addr.address}, {page_content_value}, {frame_num_tmp}, \n{page_content}")
 
-#############################################
-# @brief: For LRU, removes an existing page 
-#         from accessed list and adds it to 
-#         the end of the list to signify it
-#         being recently accessed again
-# @params: page_num
-# @return: void
-#############################################
-def update_accessed_table(page_num):
-    alg_accessed_pages.remove(page_num)
-    alg_accessed_pages.append(page_num)
 
 #############################################
 # @brief: Determines frame that should have its
@@ -146,6 +154,7 @@ def get_fifo_idx(curr_idx, buf_size):
     else:
         res = (curr_idx % (buf_size - 1)) + 1
     return res
+
 
 #############################################
 # @brief: Determines frame that should have its
@@ -230,12 +239,7 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
     tlb_idx = 0
     page_fault_cnt = 0
     tlb_hit_cnt = 0
-
-    # Pupoluate future page number list if OPT
-    if algo == OPT_FLG:
-        for addr in logical_addr_list:
-            alg_future_pages.append(addr.page_num)
-
+        
     # Begin Simulation
     for addr in logical_addr_list:
         if find_page_num_in_tlb(addr.page_num, tlb) != -1:
@@ -249,7 +253,8 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 page_content = frame_space[frame_num_tmp]
 
                 if algo == LRU_FLG:
-                    update_accessed_table(addr.page_num)
+                    alg_accessed_pages.remove(addr.page_num)
+                    alg_accessed_pages.append(addr.page_num)
                 elif algo == OPT_FLG:
                     alg_future_pages.pop(0)
             else:
@@ -262,7 +267,7 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                     bin_file.seek(byte_offset)
                     page_content = bin_file.read(FRAME_SIZE)
 
-                # Get frame number to unload
+                # Get new frame_num to unload/insert into physical
                 if algo == LRU_FLG:
                     frame_num_tmp = get_lru_idx(frame_num_tmp, n_frames, addr.page_num)
                 elif algo == OPT_FLG:
@@ -271,75 +276,23 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                     frame_num_tmp = frame_num
                     frame_num = get_fifo_idx(frame_num, n_frames)
 
-                # Insert new page content and unload old one
-                page_num_to_unload = find_addr_to_unload(page_table, frame_num_tmp)
-                print(f"UNLOADING {page_num_to_unload}")  # debug
-
-                # debug maybe?
-                # tlb[find_page_num_in_tlb(page_num_to_unload, tlb)][
-                #     FRAME_NUM_POS
-                # ] = EMPTY
-                page_table[page_num_to_unload][FRAME_NUM_POS] = EMPTY
-                page_table[page_num_to_unload][LOAD_POS] = NOT_LOADED
-                frame_space[frame_num_tmp] = page_content
+                # Update page table and physical frames
+                update_page_table_and_frame(frame_space, frame_num_tmp, page_table, addr.page_num, page_content)
 
                 # Update TLB frame_num associated with found page_num
                 tlb[found_tlb_idx][FRAME_NUM_POS] = frame_num_tmp
 
-                # Update page table to entry loaded
-                page_table[addr.page_num][FRAME_NUM_POS] = frame_num_tmp
-                page_table[addr.page_num][LOAD_POS] = LOADED
-
         else:
-            if confirm_frame_num_in_page_table(addr.page_num, page_table) != False:
-                if page_table[addr.page_num][LOAD_POS] == LOADED:
-                    print("Found LOADED logical page num in page table")
-                    frame_num_tmp = page_table[addr.page_num][FRAME_NUM_POS]
-                    page_content = frame_space[frame_num_tmp]
+            if page_table[addr.page_num][LOAD_POS] == LOADED:
+                print("Found LOADED logical page num in page table")
+                frame_num_tmp = page_table[addr.page_num][FRAME_NUM_POS]
+                page_content = frame_space[frame_num_tmp]
 
-                    # Insert into TLB using FIFO
-                    tlb_idx_tmp = tlb_idx
-                    tlb_idx = get_fifo_idx(tlb_idx, TLB_SIZE)
-                    tlb[tlb_idx_tmp][PAGE_NUM_POS] = addr.page_num
-                    tlb[tlb_idx_tmp][FRAME_NUM_POS] = frame_num_tmp
-                else:
-                    print("Found UNLOADED logical page num in page table")
-                    page_fault_cnt += 1
-
-                    # Get page content from bin file
-                    byte_offset = addr.page_num * FRAME_SIZE
-                    with open("BACKING_STORE.bin", "rb") as bin_file:
-                        bin_file.seek(byte_offset)
-                        page_content = bin_file.read(FRAME_SIZE)
-
-                    # Get frame number to unload
-                    if algo == LRU_FLG:
-                        frame_num_tmp = get_lru_idx(
-                            frame_num_tmp, n_frames, addr.page_num
-                        )
-                    elif algo == OPT_FLG:
-                        frame_num_tmp = get_opt_idx(
-                            frame_num_tmp, n_frames, addr.page_num
-                        )
-                    elif algo == FIFO_FLG:
-                        frame_num_tmp = frame_num
-                        frame_num = get_fifo_idx(frame_num, n_frames)
-
-                    # Insert new page content and unload old one
-                    page_num_to_unload = find_addr_to_unload(page_table, frame_num_tmp)
-                    # print(f"UNLOADING {page_num_to_unload}") #debug
-                    page_table[page_num_to_unload][FRAME_NUM_POS] = EMPTY
-                    page_table[page_num_to_unload][LOAD_POS] = NOT_LOADED
-                    frame_space[frame_num_tmp] = page_content
-
-                    # Insert into TLB using FIFO
-                    tlb_idx_tmp = tlb_idx
-                    tlb_idx = get_fifo_idx(tlb_idx, TLB_SIZE)
-                    tlb[tlb_idx_tmp][PAGE_NUM_POS] = addr.page_num
-                    tlb[tlb_idx_tmp][FRAME_NUM_POS] = frame_num_tmp
-
-                    # Update page table to entry loaded
-                    page_table[addr.page_num][LOAD_POS] = LOADED
+                # Insert into TLB using FIFO
+                tlb_idx_tmp = tlb_idx
+                tlb_idx = get_fifo_idx(tlb_idx, TLB_SIZE)
+                tlb[tlb_idx_tmp][PAGE_NUM_POS] = addr.page_num
+                tlb[tlb_idx_tmp][FRAME_NUM_POS] = frame_num_tmp
             else:
                 print("Page Fault Occured")
                 # Increment page fault count
@@ -351,15 +304,12 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                     bin_file.seek(byte_offset)
                     page_content = bin_file.read(FRAME_SIZE)
 
-                # Get new frame_num based on algorithm
+                # Get new frame_num to unload/insert into physical
                 frame_num_tmp = frame_num
                 if algo == LRU_FLG:
                     frame_num = get_lru_idx(frame_num, n_frames, addr.page_num)
-                    print(frame_full_flg)
                     if frame_full_flg == True:
-                        print("HELLO?")
                         frame_num_tmp = frame_num
-
                 elif algo == OPT_FLG:
                     frame_num = get_opt_idx(frame_num, n_frames, addr.page_num)
                     if frame_full_flg == True:
@@ -367,39 +317,23 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 elif algo == FIFO_FLG:
                     frame_num = get_fifo_idx(frame_num, n_frames)
 
-                # Put page content into physical memory using updated index from algorithm
-                # print(f"frame num tmp: {frame_num_tmp} and frame num: {frame_num}") #debug
-                if is_all_zeros(frame_space[frame_num_tmp]):
-                    frame_space[frame_num_tmp] = page_content
-                else:
-                    # Reset entry in page table if physical memory is full
-                    # page_num_to_unload = find_addr_to_unload(page_table, frame_num_tmp)
-
-                    page_num_to_unload = find_addr_to_unload(page_table, frame_num_tmp)
-                    print(f"UNLOADING{page_num_to_unload}")
-                    page_table[page_num_to_unload][FRAME_NUM_POS] = EMPTY
-                    page_table[page_num_to_unload][LOAD_POS] = NOT_LOADED
-                    frame_space[frame_num_tmp] = page_content
+                # Update page table and physical frames
+                update_page_table_and_frame(frame_space, frame_num_tmp, page_table, addr.page_num, page_content)
 
                 # Update TLB using FIFO
                 tlb_idx_tmp = tlb_idx
                 tlb_idx = get_fifo_idx(tlb_idx, TLB_SIZE)
                 tlb[tlb_idx_tmp][PAGE_NUM_POS] = addr.page_num
                 tlb[tlb_idx_tmp][FRAME_NUM_POS] = frame_num_tmp
-
-                # Inserting frame number at index = page number
-                # and set loaded bit because added into physical memory
-                page_table[addr.page_num][FRAME_NUM_POS] = frame_num_tmp
-                page_table[addr.page_num][LOAD_POS] = LOADED
+                
 
         # Print Data
         # print_mem_data(addr, page_content, frame_num_tmp)
-        print(f"ftable: {alg_frame_table} and access: {alg_accessed_pages}")  # debug
-        # print(f"ftable: {alg_frame_table} and access: {alg_future_pages}")  # debug
-        # print(f"page addr: {addr.page_num} and pg fault cnt: {page_fault_cnt}")
+        print(f"lru ftable: {alg_frame_table} and access: {alg_accessed_pages}")  # debug
+        print(f"opt ftable: {alg_frame_table} and future: {alg_future_pages}")  # debug
+        print(f"page addr: {addr.page_num} and pg fault cnt: {page_fault_cnt}")
         print(tlb)
         print("------------> ")  # debug
-
     return [tlb_hit_cnt, page_fault_cnt]
 
 #############################################
@@ -418,6 +352,7 @@ def main():
 
     # Get arg 1
     filename = sys.argv[1]
+    addr_list = get_logical_addresses(filename)
 
     # Get arg 2
     n_frames = int(sys.argv[2]) if len(sys.argv) >= 3 else DFLT_N_FRMAES
@@ -429,12 +364,12 @@ def main():
         algo = LRU_FLG
     elif algo.lower() == "opt":
         algo = OPT_FLG
+        for addr in addr_list:
+            alg_future_pages.append(addr.page_num)
     elif algo.lower() == "fifo":
         algo = FIFO_FLG
 
-    # Get page number and offset from local addresses
-    addr_list = get_logical_addresses(filename)
-
+    
     # Main function
     result = do_mem_sim(frame_space, n_frames, algo, addr_list)
 
@@ -454,12 +389,6 @@ def main():
         f"TLB Misses = {num_tlb_misses}\n"
         f"TLB Hit Rate = {rate_tlb_hits}"
     )
-
-    # for addr in addr_list:
-    #     print(
-    #         f"Address {addr.address}, Page Number {addr.page_num}, Offset {addr.offset} "
-    #     )
-
 
 if __name__ == "__main__":
     main()
