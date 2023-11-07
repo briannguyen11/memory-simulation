@@ -276,7 +276,6 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                     alg_future_pages.pop(0)
             else:
                 # print("Found UNLOADED logical page num in tlb")
-
                 page_fault_cnt += 1
 
                 # Get page content from bin file
@@ -345,8 +344,8 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
         print_mem_data(addr, page_content, frame_num_tmp)
         # print(f"lru ftable: {alg_frame_table} and access: {alg_accessed_pages}")  # debug
         # print(f"opt ftable: {alg_frame_table} and future: {alg_future_pages}")  # debug
-        # print(f"page addr: {addr.page_num} and pg fault cnt: {page_fault_cnt}") #debug
-        # print(tlb)
+        # # print(f"page addr: {addr.page_num} and pg fault cnt: {page_fault_cnt}") #debug
+        # # print(tlb)
         # print("------------> ")  # debug
     
     return [tlb_hit_cnt, page_fault_cnt]
