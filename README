@@ -1,0 +1,8 @@
+Names: Brian Nguyen and Charles Snead
+Special Instructions: None
+
+Important Notes:
+For the optimal (OPT) algorithm, when there was no page left to 
+replace from the complete list of logical addresses, the page to
+replace became arbitrary, and so we set the first page in the frame
+table to be the frame to replace.

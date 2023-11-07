@@ -8,7 +8,7 @@ OPT_FLG = 2
 
 FRAME_SIZE = 256
 BYTE_SIZE = 8
-TLB_SIZE = 4  # debug
+TLB_SIZE = 16  # debug
 PAGE_TABLE_SIZE = 256
 
 DFLT_N_FRMAES = 256
@@ -262,7 +262,8 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
             page_tlb_idx = find_page_num_in_tlb(addr.page_num, tlb)
             # Check is it actully loaded
             if page_table[addr.page_num][LOAD_POS] == LOADED:
-                print("Found LOADED logical page num in tlb")
+                # print("Found LOADED logical page num in tlb")
+                
                 tlb_hit_cnt += 1
                 frame_num_tmp = tlb[page_tlb_idx][FRAME_NUM_POS]
                 page_content = frame_space[frame_num_tmp]
@@ -273,7 +274,8 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 elif algo == OPT_FLG:
                     alg_future_pages.pop(0)
             else:
-                print("Found UNLOADED logical page num in tlb")
+                # print("Found UNLOADED logical page num in tlb")
+
                 page_fault_cnt += 1
 
                 # Get page content from bin file
@@ -296,7 +298,8 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
 
         else:
             if page_table[addr.page_num][LOAD_POS] == LOADED:
-                print("Found LOADED logical page num in page table")
+                # print("Found LOADED logical page num in page table")
+
                 frame_num_tmp = page_table[addr.page_num][FRAME_NUM_POS]
                 page_content = frame_space[frame_num_tmp]
 
@@ -306,7 +309,8 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 tlb[tlb_idx_tmp][PAGE_NUM_POS] = addr.page_num
                 tlb[tlb_idx_tmp][FRAME_NUM_POS] = frame_num_tmp
             else:
-                print("Page Fault Occured")
+                # print("Page Fault Occured")
+
                 # Increment page fault count
                 page_fault_cnt += 1
 
@@ -337,12 +341,13 @@ def do_mem_sim(frame_space, n_frames, algo, logical_addr_list):
                 
 
         # Print Data
-        # print_mem_data(addr, page_content, frame_num_tmp)
-        print(f"lru ftable: {alg_frame_table} and access: {alg_accessed_pages}")  # debug
-        print(f"opt ftable: {alg_frame_table} and future: {alg_future_pages}")  # debug
-        print(f"page addr: {addr.page_num} and pg fault cnt: {page_fault_cnt}")
-        print(tlb)
-        print("------------> ")  # debug
+        print_mem_data(addr, page_content, frame_num_tmp)
+        # print(f"lru ftable: {alg_frame_table} and access: {alg_accessed_pages}")  # debug
+        # print(f"opt ftable: {alg_frame_table} and future: {alg_future_pages}")  # debug
+        # print(f"page addr: {addr.page_num} and pg fault cnt: {page_fault_cnt}") #debug
+        # print(tlb)
+        # print("------------> ")  # debug
+    
     return [tlb_hit_cnt, page_fault_cnt]
 
 #############################################
