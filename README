@@ -5,4 +5,6 @@ Important Notes:
 For the optimal (OPT) algorithm, when there was no page left to 
 replace from the complete list of logical addresses, the page to
 replace became arbitrary, and so we set the first page in the frame
-table to be the frame to replace.
+table to be the frame to replace. However, if the frame to be replaced
+was still in the list of future addresses, we instead arbitrarily
+replaced the last index of the frame table with the new page number.

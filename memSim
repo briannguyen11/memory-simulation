@@ -225,10 +225,15 @@ def get_opt_idx(curr_idx, buf_size, page_num):
                 if page not in rem_page_accessed:
                     rem_page_accessed.add(page)
                     rem_page_limit += 1
-
+                if page in alg_future_pages:
+                    found_rem_page = False
+                
         if found_rem_page == False:
             # Set rem_page to first item in frame table if nothing else to replace
-            rem_page = alg_frame_table[0]
+            if rem_page in alg_future_pages:
+                rem_page = alg_frame_table[len(alg_frame_table) - 1]
+            else:
+                rem_page = alg_frame_table[0]
 
         # Replace page in alg table
         for i in range(len(alg_frame_table)):
